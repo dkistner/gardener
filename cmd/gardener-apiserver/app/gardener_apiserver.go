@@ -383,6 +383,8 @@ func (o *Options) ApplyTo(config *apiserver.Config) error {
 	// TODO: `ShootExtensionStatus` is not yet promoted to `core.gardener.cloud/v1beta1` - this can be removed once `ShootExtensionStatus` got promoted.
 	resourceEncodingConfig.SetResourceEncoding(gardencore.Resource("shootextensionstatuses"), gardencorev1alpha1.SchemeGroupVersion, gardencore.SchemeGroupVersion)
 	resourceEncodingConfig.SetResourceEncoding(gardenoperations.Resource("bastions"), operationsv1alpha1.SchemeGroupVersion, gardenoperations.SchemeGroupVersion)
+	// TODO: `ExposureClass` is not yet promoted to `core.gardener.cloud/v1beta1` - this can be removed once `ExposureClass` got promoted.
+	resourceEncodingConfig.SetResourceEncoding(gardencore.Resource("exposureclasses"), gardencorev1alpha1.SchemeGroupVersion, gardencore.SchemeGroupVersion)
 
 	storageFactory := &storage.GardenerStorageFactory{
 		DefaultStorageFactory: serverstorage.NewDefaultStorageFactory(
