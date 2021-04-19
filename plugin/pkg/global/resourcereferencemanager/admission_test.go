@@ -695,6 +695,40 @@ var _ = Describe("resourcereferencemanager", func() {
 				Expect(err).To(HaveOccurred())
 			})
 
+			Context("exposure class reference", func() {
+				var exposureClassName = "test-exposureclass"
+
+				BeforeEach(func() {
+					Expect(gardenCoreInformerFactory.Core().InternalVersion().CloudProfiles().Informer().GetStore().Add(&cloudProfile)).To(Succeed())
+					Expect(gardenCoreInformerFactory.Core().InternalVersion().Seeds().Informer().GetStore().Add(&seed)).To(Succeed())
+					Expect(gardenCoreInformerFactory.Core().InternalVersion().SecretBindings().Informer().GetStore().Add(&secretBinding)).To(Succeed())
+					Expect(kubeInformerFactory.Core().V1().ConfigMaps().Informer().GetStore().Add(&configMap)).To(Succeed())
+
+					shoot.Spec.ExposureClassName = &exposureClassName
+				})
+
+				It("should reject because the referenced exposure class does not exists", func() {
+					attrs := admission.NewAttributesRecord(&shoot, nil, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Create, &metav1.CreateOptions{}, false, defaultUserInfo)
+
+					err := admissionHandler.Admit(context.TODO(), attrs, nil)
+					Expect(err).To(HaveOccurred())
+				})
+
+				It("should accept because the referenced exposure class exists", func() {
+					var exposureClass = core.ExposureClass{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: exposureClassName,
+						},
+					}
+					Expect(gardenCoreInformerFactory.Core().InternalVersion().ExposureClasses().Informer().GetStore().Add(&exposureClass)).To(Succeed())
+
+					attrs := admission.NewAttributesRecord(&shoot, nil, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Create, &metav1.CreateOptions{}, false, defaultUserInfo)
+
+					err := admissionHandler.Admit(context.TODO(), attrs, nil)
+					Expect(err).To(HaveOccurred())
+				})
+			})
+
 			It("should reject because the referenced config map does not exist", func() {
 				Expect(gardenCoreInformerFactory.Core().InternalVersion().CloudProfiles().Informer().GetStore().Add(&cloudProfile)).To(Succeed())
 				Expect(gardenCoreInformerFactory.Core().InternalVersion().Seeds().Informer().GetStore().Add(&seed)).To(Succeed())

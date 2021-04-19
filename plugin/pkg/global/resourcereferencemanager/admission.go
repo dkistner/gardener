@@ -73,6 +73,7 @@ type ReferenceManager struct {
 	secretLister               kubecorev1listers.SecretLister
 	configMapLister            kubecorev1listers.ConfigMapLister
 	cloudProfileLister         corelisters.CloudProfileLister
+	exposureClassLister        corelisters.ExposureClassLister
 	seedLister                 corelisters.SeedLister
 	shootLister                corelisters.ShootLister
 	secretBindingLister        corelisters.SecretBindingLister
@@ -138,7 +139,10 @@ func (r *ReferenceManager) SetInternalCoreInformerFactory(f coreinformers.Shared
 	controllerDeploymentInformer := f.Core().InternalVersion().ControllerDeployments()
 	r.controllerDeploymentLister = controllerDeploymentInformer.Lister()
 
-	readyFuncs = append(readyFuncs, seedInformer.Informer().HasSynced, shootInformer.Informer().HasSynced, cloudProfileInformer.Informer().HasSynced, secretBindingInformer.Informer().HasSynced, quotaInformer.Informer().HasSynced, projectInformer.Informer().HasSynced, controllerDeploymentInformer.Informer().HasSynced)
+	exposurClassInformer := f.Core().InternalVersion().ExposureClasses()
+	r.exposureClassLister = exposurClassInformer.Lister()
+
+	readyFuncs = append(readyFuncs, seedInformer.Informer().HasSynced, shootInformer.Informer().HasSynced, cloudProfileInformer.Informer().HasSynced, secretBindingInformer.Informer().HasSynced, quotaInformer.Informer().HasSynced, projectInformer.Informer().HasSynced, controllerDeploymentInformer.Informer().HasSynced, exposurClassInformer.Informer().HasSynced)
 }
 
 // SetKubeInformerFactory gets Lister from SharedInformerFactory.
@@ -195,6 +199,9 @@ func (r *ReferenceManager) ValidateInitialization() error {
 	}
 	if r.projectLister == nil {
 		return errors.New("missing project lister")
+	}
+	if r.exposureClassLister == nil {
+		return errors.New("missing exposure class lister")
 	}
 	return nil
 }
@@ -589,6 +596,12 @@ func (r *ReferenceManager) ensureShootReferences(ctx context.Context, attributes
 
 	if !equality.Semantic.DeepEqual(oldShoot.Spec.SecretBindingName, shoot.Spec.SecretBindingName) {
 		if _, err := r.secretBindingLister.SecretBindings(shoot.Namespace).Get(shoot.Spec.SecretBindingName); err != nil {
+			return err
+		}
+	}
+
+	if !equality.Semantic.DeepEqual(oldShoot.Spec.ExposureClassName, shoot.Spec.ExposureClassName) && shoot.Spec.ExposureClassName != nil {
+		if _, err := r.exposureClassLister.Get(*shoot.Spec.ExposureClassName); err != nil {
 			return err
 		}
 	}
