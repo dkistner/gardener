@@ -748,6 +748,12 @@ func (b *Botanist) getKubeApiServerServiceAnnotations(sniPhase component.Phase) 
 }
 
 func (b *Botanist) kubeAPIServiceService(sniPhase component.Phase) component.DeployWaiter {
+	var sniServiceKey = client.ObjectKey{Name: *b.Config.SNI.Ingress.ServiceName, Namespace: *b.Config.SNI.Ingress.Namespace}
+	if b.ExposureClassHandler != nil {
+		sniServiceKey.Name = *b.ExposureClassHandler.SNI.Ingress.ServiceName
+		sniServiceKey.Namespace = *b.ExposureClassHandler.SNI.Ingress.Namespace
+	}
+
 	return kubeapiserverexposure.NewService(
 		b.Logger,
 		b.K8sSeedClient.Client(),
@@ -757,7 +763,7 @@ func (b *Botanist) kubeAPIServiceService(sniPhase component.Phase) component.Dep
 			SNIPhase:                  sniPhase,
 		},
 		client.ObjectKey{Name: v1beta1constants.DeploymentNameKubeAPIServer, Namespace: b.Shoot.SeedNamespace},
-		client.ObjectKey{Name: *b.Config.SNI.Ingress.ServiceName, Namespace: *b.Config.SNI.Ingress.Namespace},
+		sniServiceKey,
 		nil,
 		b.setAPIServerServiceClusterIP,
 		func(address string) { b.setAPIServerAddress(address, b.K8sSeedClient.Client()) },
@@ -813,10 +819,7 @@ func (b *Botanist) DefaultKubeAPIServerSNI() component.DeployWaiter {
 		b.K8sSeedClient.Applier(),
 		b.Shoot.SeedNamespace,
 		&kubeapiserverexposure.SNIValues{
-			IstioIngressGateway: kubeapiserverexposure.IstioIngressGateway{
-				Namespace: *b.Config.SNI.Ingress.Namespace,
-				Labels:    b.Config.SNI.Ingress.Labels,
-			},
+			IstioIngressGateway:      b.getIngressGatewayConfig(),
 			APIServerInternalDNSName: b.outOfClusterAPIServerFQDN(),
 		},
 	))
@@ -840,10 +843,7 @@ func (b *Botanist) setAPIServerServiceClusterIP(clusterIP string) {
 				gutil.GetAPIServerDomain(*b.Shoot.ExternalClusterDomain),
 				gutil.GetAPIServerDomain(b.Shoot.InternalClusterDomain),
 			},
-			IstioIngressGateway: kubeapiserverexposure.IstioIngressGateway{
-				Namespace: *b.Config.SNI.Ingress.Namespace,
-				Labels:    b.Config.SNI.Ingress.Labels,
-			},
+			IstioIngressGateway:      b.getIngressGatewayConfig(),
 			APIServerInternalDNSName: b.outOfClusterAPIServerFQDN(),
 		},
 	)
@@ -912,4 +912,18 @@ func (b *Botanist) RestartControlPlanePods(ctx context.Context) error {
 		client.InNamespace(b.Shoot.SeedNamespace),
 		client.MatchingLabels{v1beta1constants.LabelPodMaintenanceRestart: "true"},
 	)
+}
+
+func (b *Botanist) getIngressGatewayConfig() kubeapiserverexposure.IstioIngressGateway {
+	var ingressGatewayConfig = kubeapiserverexposure.IstioIngressGateway{
+		Namespace: *b.Config.SNI.Ingress.Namespace,
+		Labels:    b.Config.SNI.Ingress.Labels,
+	}
+
+	if b.ExposureClassHandler != nil {
+		ingressGatewayConfig.Namespace = *b.ExposureClassHandler.SNI.Ingress.Namespace
+		ingressGatewayConfig.Labels = gutil.GetMandatoryExposureClassHandlerSNILabels(b.ExposureClassHandler.SNI.Ingress.Labels, b.ExposureClassHandler.Name)
+	}
+
+	return ingressGatewayConfig
 }
